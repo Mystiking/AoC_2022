@@ -5,165 +5,120 @@ from collections import defaultdict
 import inspect
 from typing import List
 
-class Tree(object):
-	parent = None
+
+class Directory(object):
 	name = None
+	parent = None
+	children = []
 	size = 0
-	leaves = []
 
 	def __init__(self, parent, name, size=0):
 		self.parent = parent
 		self.name = name
-		self.leaves = []
+		self.children = []
 		self.size = size
 
-	def add_leaf(self, leaf, size):
-		self.leaves.append(leaf)
+	def printTree(self, space = ""):
+		print(space + self.name + ":" + str(self.size))
+		for c in self.children:
+			c.printTree(space + "\t")
 
-	def has_child(self, name):
-		for l in self.leaves:
-			if l.name == name:
-				return True
-			else:
-				l.has_child(name)
-		return False
 
-	def get_child(self, name, parentName):
-		for l in self.leaves:
-			if l.name == name and l.parent == parentName:
-				return l
-			else:
-				child = l.get_child(name, parentName)
-				if not (child is None):
-					return child
-		return None
+def getDirectorySize(node):
+	size = 0
+	for c in node.children:
+		if c.children == []:
+			size += c.size
+		else:
+			size += getDirectorySize(c)
+	return size
 
-	def add_leaf_to_child(self, leaf, child):
-		for l in self.leaves:
-			if l.name == child:
-				l.leaves.append(leaf)
-			else:
-				l.add_leaf_to_child(leaf, child)
+def getSubNodes(node, subNodes):
+	for c in node.children:
+		if c.children != []:
+			subNodes.append(getDirectorySize(c))
+	for c in node.children:
+		if c.children != []:
+			getSubNodes(c, subNodes)
 
-	def printTree(self, space):
-		print(space + self.name + " " + str(self.size))
-		for l in self.leaves:
-			l.printTree(space + "\t")
+	return subNodes
 
-	def get_size_of_dir(self, name, parentName):
-		dirRoot = self if name == self.name else self.get_child(name, parentName)
-		# if name == "2wzpth":
-		# 	x = 0
-		if dirRoot is None:
-			return 0
-		if dirRoot.leaves == []:
-			return dirRoot.size
 
-		dirSize = 0
-		for l in dirRoot.leaves:
-			if l.leaves == []:
-				dirSize += l.size
-			else:
-				dirSize += dirRoot.get_size_of_dir(l.name, dirRoot.name)
-		return dirSize
+def getDirectorySizesCountOnce(node):
+	size = node.size
+	for c in node.children:
+		if c.children != []:
+			#print(c.size)
+			size += getDirectorySizesCountOnce(c)
+	return size
 
+def computeDirSizes(node):
+	for c in node.children:
+		if c.children == []:  # i.e. not a directory
+			node.size += c.size
+		else:
+			computeDirSizes(c)
+
+def computeActualDirSizes(node):
+	for c in node.children:
+		if c.children == []:
+			c.parent.size += c.size
+		else:
+			computeActualDirSizes(c)
+			c.parent.size += c.size
 
 
 if __name__ == '__main__':
 	dataFileA = "./data/Day7_A.txt"
 	dataFileB = "./data/Day7_B.txt"
 	# Section A:
-	with open(dataFileA) as fhA:
+	with open(dataFileB) as fhA:
 		lines = fhA.readlines()
-		fileTree = Tree(None, "/")
-		'''
-		fileTree.add_leaf(Tree("/", "a"), 0)
-		fileTree.add_leaf(Tree("/", "b"), 0)
-		fileTree.add_leaf(Tree("/", "c"), 100)
-
-		fileTree.printTree("")
-		fileTree.add_leaf_to_child(Tree("a", "d"), "a")
-		fileTree.printTree("")
-		'''
-		dirs = set()
-		depth = 0
-		incrementer = 0
-		currentDir = "/"
-		#dirs.add(currentDir)
-		dirOccs = defaultdict(int)
-		currentNode = fileTree
-		oldParent = "/"
-		for line in lines[1:]:  # We know line 1 is cd /
-			tokens = line.replace('\n', '').split(' ')
+		rootDir = Directory(None, "/")
+		currentDir = rootDir
+		for line in lines[1:]:
+			tokens = line.replace('\n', '').split(" ")
 			if tokens[0] == "$":
-				#fileTree.printTree("")
+				# Command
 				if tokens[1] == "ls":
 					pass
 				elif tokens[1] == "cd":
-					if tokens[2] != "..":
-						depth += 1
-						nextDir = tokens[2]
-						if str(depth) + nextDir == "2d":
-							x = 0
-						newTree = Tree(currentNode.name, str(depth) + nextDir)
-						if nextDir == "i":
-							v = 0
-						if depth > 1:
-							fileTree.get_child(currentNode.name, currentNode.parent).add_leaf(newTree, 0)
-						else:
-							fileTree.add_leaf(newTree, 0)
-						oldParent = currentNode.parent
-						currentNode = newTree
-						#currentDir = str(depth) + nextDir
-
-						dirs.add((currentNode.name, currentNode.parent))
-						dirOccs[(currentNode.name, currentNode.parent)] += 1
+					#print(currentDir.name, currentDir.parent)
+					if tokens[2] == "..":
+						currentDir = currentDir.parent
 					else:
-						depth -= 1
-						#print(currentDir, currentNode.parent)
-						#fileTree.printTree("")
-						currentNode = fileTree.get_child(currentNode.parent, oldParent)#fileTree.get_child(currentDir, currentNode.parent).parent
-						if currentNode is None:
-							print("oldP:", oldParent)
-						else:
-							print("P", currentNode.parent, "oldP:", oldParent)
-
-			else:  # "ls" must have just been called
-				if currentNode.name == "/":
-					if tokens[0] != "dir":
-						if tokens[1] == "i":
-							v = 0
-						newTree = Tree(currentNode.name, tokens[1], int(tokens[0]))
-						fileTree.add_leaf(newTree,  int(tokens[0]))
+						newDir = Directory(currentDir, tokens[2])
+						currentDir.children.append(newDir)
+						currentDir = newDir
+			else: # We have just called "ls"
+				if tokens[0] == "dir":
+					pass
 				else:
-					if tokens[0] != "dir":
-						if tokens[1] == "i":
-							v = 0
-						newTree = Tree(currentDir, tokens[1], int(tokens[0]))
-						child = fileTree.get_child(currentNode.name, currentNode.parent)
-						fileTree.get_child(currentNode.name, currentNode.parent).add_leaf(newTree, int(tokens[0]))
+					currentDir.children.append(Directory(currentDir, tokens[1], int(tokens[0])))
 
-		fileTree.printTree("")
-		validsums = []
+#		rootDir.printTree()
+		nodes = getSubNodes(rootDir, [getDirectorySize(rootDir)])
+		print("answer", sum([n for n in nodes if n <= 100000]))
+		space_used = nodes[0]
+		space_needed = 30000000
+		total_space = 70000000
+		unused_space = total_space - space_used
+		total_space_needed = space_needed - unused_space
+		print("total space needed", space_needed - unused_space)
+		print(nodes)
+		for n in sorted(nodes):
+			if n >= total_space_needed:
+				print(n)
+				break
+#		print(getDirectorySizesCountOnce(rootDir))
+		#computeDirSizes(rootDir)
+		computeActualDirSizes(rootDir)
+		nodes = getSubNodes(rootDir, [getDirectorySize(rootDir)])
 
-		for d in dirs:
-			tsize = fileTree.get_size_of_dir(d[0], d[1])
-			if tsize == 0:
-				print(d)
-			#print(d, "size", tsize)
-			if tsize <= 100000:
-				validsums.append(tsize)
-		print((validsums))
-		print(sum(validsums))
-		#print(dirOccs)
-		for d in dirOccs:
-			if dirOccs[d] > 1:
-				#print(d, dirOccs[d])
-				pass
+		#rootDir.printTree()
 
-
-
-
+		#size = rootDir.size
+		#print(getDirectorySizesCountOnce(rootDir))
 
 
 
